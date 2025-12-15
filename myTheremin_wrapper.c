@@ -1,60 +1,56 @@
 extern int myTheremin(void);
-extern int poll_ADC(void);
 extern int updateFreq(int);
+extern int updateVolume(int);
 
-int smooth_adc(void);
+typedef struct{
+    int pitch;
+    int volume;
+}adcInput;
+extern int poll_ADC(adcInput* temp);
+void smooth_adc(adcInput* );
 
 int main(){
   myTheremin();
-  while(1){
-      int valueRead=smooth_adc();
-      if(valueRead>0&& valueRead<450){
-          updateFreq(318);
-      }
-      else if(valueRead>451&& valueRead<800){
-                updateFreq(357);
-      }
-      else if(valueRead>801&& valueRead<1150){
-                updateFreq(379);
-      }
-      else if(valueRead>1151&& valueRead<1500){
-                updateFreq(425);
-      }
-      else if(valueRead>1501&& valueRead<1850){
-                updateFreq(477);
-      }
-      else if(valueRead>1851&& valueRead<2200){
-                updateFreq(506);
-      }
-      else if(valueRead>2201&& valueRead<2250){
-                updateFreq(567);
-      }
-      else if(valueRead>2251&& valueRead<2700){
-                updateFreq(637);
-      }
-      else if(valueRead>2701&& valueRead<2900){
-                updateFreq(715);
-      }
-      else if(valueRead>2901&& valueRead<3000){
-                updateFreq(758);
-      }
-      else if(valueRead>3000&& valueRead<3800){
-                updateFreq(850);
-      }
-      else if(valueRead>3800&& valueRead<3810){
-                updateFreq(955);
-      }
-      else{
-          updateFreq(0);
-      }
+  adcInput notePlayed;
+  int minFreq= 318;
+  int maxFreq= 955;
+  int adcMax= 4095;
+  int adcNoHand= 3200;
+  int lastFreq = 0;
+  int lastVolume = 0;
+  int adcVolMax = 4095;
+
+while(1) {
+  smooth_adc(&notePlayed);
+  int pitchRead= notePlayed.pitch; //the pitch is the avg of the pitches read
+  int volumeRead=notePlayed.volume;
+  if(pitchRead>=adcNoHand){ //turn off for when no hand is present
+      updateFreq(0);
+      updateVolume(0);
+      continue;
+  }
+  int freq = minFreq + ((maxFreq - minFreq) * pitchRead) / adcMax;
+  if(freq != lastFreq) {       //only update if the note changes
+      updateFreq(freq);
+      lastFreq = freq;
+  }
+  int volume_duty_cycle = (freq * volumeRead) / adcVolMax;
+  if(volume_duty_cycle != lastVolume) {
+      updateVolume(volume_duty_cycle); //update cmp value
+      lastVolume = volume_duty_cycle;
+  }
   }
 }
 
-int smooth_adc(void){
-   int sum = 0;
-   int i;
-   for(i = 0; i < 16; i++){
-     sum += poll_ADC();
+void smooth_adc(adcInput* rawReading){
+   int avgPitch=0,avgVolume= 0;
+   int i=0;
+   adcInput temp;
+   for(; i < 16; i++){
+     poll_ADC(&temp);
+     avgPitch+= temp.pitch;
+     avgVolume+=temp.volume;
    }
-   return (sum/16);
+   rawReading->pitch=(avgPitch/16);
+   rawReading->volume=(avgVolume/16);
 }
